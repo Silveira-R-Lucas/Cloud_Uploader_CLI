@@ -1,0 +1,65 @@
+#!/bin/bash
+
+setup() { 
+    echo "Instalando/Configurando GoogleCLoud CLI"
+    sudo apt-get install apt-transport-https ca-certificates gnupg curl sudo
+    curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg
+    echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | sudo tee -a /etc/apt/sources.list.d/google-cloud-sdk.list
+    sudo apt-get update && sudo apt-get install google-cloud-cli
+    # Login
+    gcloud init
+}
+
+check_path_exists(){
+    if [ -z "$1" ]; then
+        echo "Caminho do arquivo está vazio"
+        exit
+    fi
+}
+
+check_file_exists(){
+    if [ ! -f "$1" ]; then
+        echo "Arquivo não encontrado"
+        exit
+    fi
+}
+
+upload_file(){
+    echo "Uploading $1 para o bucket $2 ..."
+    gsutil cp $1 gs://$2 && echo "Upload do arquivo realizado com sucesso!" || echo "Falha no upload =("
+}
+
+BUCKET=''
+bucket_exist?(){
+   response= gcloud storage buckets list gs://"$1"
+   if [ $response -ne 0 ]; then
+   	read -p "Este bucket não existe, Deseja criar um bucket ?(y/n) " create_bucket
+   	if [ $create_bucket = 'y' ]; then
+   	    response= gcloud storage buckets create gs://$1
+   	    if [ ! $response ]; then
+   	    	echo "Upload abortado..."
+            	exit
+   	    fi
+   	else
+   	    echo "Upload abortado..."
+            exit
+   	fi
+   else
+   	BUCKET=$1
+   fi
+}
+
+echo "Olá ! Bem vindo ao CloudUploader helper"
+read -p "Gcloud CLI já está configurado na sua máquina ?(y/n)" gcloudconfig
+
+if [ $gcloudconfig = 'n' ]; then
+   setup
+fi
+
+read -p "Em qual bucket deseja realizar o upload? " bucket
+bucket_exist? "$bucket"
+echo "CUIDADO!! Ao realizar upload de um arquivo já existente no bucket ele será sobrescrito !!"
+read -p "Digite o nome/caminho do arquivo para realizar o upload: " file_name
+check_path_exists "$file_name"
+check_file_exists "$file_name"
+upload_file "$file_name" "$BUCKET"
